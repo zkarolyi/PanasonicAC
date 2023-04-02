@@ -24,18 +24,54 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   Serial.println(strPayload);
 }
 
+void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header = CTRL_HEADER) {
+  uint8_t length = command.size();
+  command.insert(command.begin(), header);
+  command.insert(command.begin() + 1, length);
+
+  uint8_t checksum = 0;
+
+  for (uint8_t i : command)
+    checksum -= i;  // Add to checksum
+
+  command.push_back(checksum);
+
+  send_packet(command, type);  // Actually send the constructed packet
+} 
+
+void write_array(const std::vector<uint8_t> &packet) {
+    // Az adatok írása a soros portra
+    for (uint8_t i = 0; i < packet.size(); i++) {
+        Serial2.write(packet[i]);
+    }
+}
+
+void send_packet(const std::vector<uint8_t> &packet, CommandType type) {
+  last_packet_sent_ = millis();  // Save the time when we sent the last packet
+
+  if (type != CommandType::Response)     // Don't wait for a response for responses
+    waiting_for_response_ = true;  // Mark that we are waiting for a response
+
+  write_array(packet);       // Write to UART
+}
+
+void handle_poll() {
+  if (millis() - last_packet_sent_ > POLL_INTERVAL) {
+    Serial.println("Polling AC");
+    sendMQTTMessage("Polling AC");
+    send_command(CMD_POLL, CommandType::Normal, POLL_HEADER);
+  }
+}
+
 void onSerialData()
 {
   if (Serial2.available())
   {
-    String data = Serial2.readStringUntil('\n');
+    String data = Serial2.readString();
     if (data.length() > 0)
     {
       Serial.print("Serial data: ");
       Serial.println(data);
-      if (data.startsWith("/"))
-      {
-      }
       if (data.length() > MAX_STRING_LENGTH)
       {
         strcpy(buffer, data.substring(0, MAX_STRING_LENGTH - 1).c_str());
@@ -50,10 +86,24 @@ void onSerialData()
   }
 }
 
+String toHex(const char* buffer, size_t length) {
+  String hexString;
+  const char* hexDigits = "0123456789ABCDEF";
+
+  for (size_t i = 0; i < length; i++) {
+    hexString += hexDigits[(buffer[i] >> 4) & 0x0F];
+    hexString += hexDigits[buffer[i] & 0x0F];
+  }
+
+  return hexString;
+}
+
 void onRequest()
 {
   String html = "<html>\n<body>\n";
   html += buffer;
+  html += "<br/>\n";
+  html += toHex(buffer, sizeof(buffer));
   html += "<br/>\n";
   html += "</body>\n</html>\n";
   server.send(200, "text/html", html);
@@ -127,7 +177,7 @@ void handleConnect()
 void handleGet()
 {
   // Start status reading
-  server.send(200, "text/html", "readed info...")
+  server.send(200, "text/html", "readed info...");
 }
 
 void connectToRouter(String ssid, String password)
@@ -175,6 +225,7 @@ void timer()
   {                                 // ha eltelt a megadott idő
     previousMillis = currentMillis; // frissítjük az előző időt
     flashLed();
+    handle_poll();
   }
 }
 
@@ -185,17 +236,10 @@ void flashLed()
 
 void sendMQTTMessage(String payload)
 {
-  // Serial.println(payload);
-  int firstParenth = payload.indexOf("(");
-  int firstStar = payload.indexOf("*");
-  int lastParenth = payload.indexOf(")");
-  if (firstParenth == -1 || (firstStar == -1 && lastParenth == -1))
-  {
-    return;
-  }
+  Serial.println(payload);
 
-  String mqttTopic = topic + payload.substring(0, firstParenth);
-  String mqttPayload = payload.substring(firstParenth + 1, firstStar != -1 ? firstStar : lastParenth);
+  String mqttTopic = topic;
+  String mqttPayload = payload;
 
   Serial.print("Sending (");
   Serial.print(mqttTopic);
@@ -230,6 +274,7 @@ void setup()
 {
   Serial.begin(115200);
   Serial2.begin(115200, SERIAL_8N1, 16, -1, true);
+  Serial2.setTimeout(READ_TIMEOUT);
 
   pinMode(ledPin, OUTPUT); // LED lábának beállítása kimenetre
 
