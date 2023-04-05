@@ -5,14 +5,42 @@
 #include <PubSubClient.h>
 #include "main.h"
 
-WebServer server(80); // A WebServer objektum inicializálása, 80-as porton
-char ssid[32];
-char password[64];
+// MQTT
+void sendMQTTMessage(String payload)
+{
+  Serial.println(payload);
 
-char buffer[MAX_STRING_LENGTH]; // MAX_STRING_LENGTH a legnagyobb várható string hossza
+  String mqttTopic = topic;
+  String mqttPayload = payload;
 
-WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
+  Serial.print("Sending (");
+  Serial.print(mqttTopic);
+  Serial.print("): ");
+  Serial.println(mqttPayload);
+
+  if (!mqttClient.connected())
+  {
+    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
+    {
+      Serial.println("Connected to MQTT broker");
+    }
+    else
+    {
+      Serial.print("Failed to connect to MQTT broker, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" retrying later");
+    }
+  }
+  if (mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str()))
+  {
+    Serial.println("Message published successfully.");
+  }
+  else
+  {
+    Serial.print("Error publishing message. Error code: ");
+    Serial.println(mqttClient.state());
+  }
+}
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
@@ -24,7 +52,9 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   Serial.println(strPayload);
 }
 
-void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header = CTRL_HEADER) {
+// AC Serial
+void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header = CTRL_HEADER)
+{
   uint8_t length = command.size();
   command.insert(command.begin(), header);
   command.insert(command.begin() + 1, length);
@@ -32,31 +62,36 @@ void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header
   uint8_t checksum = 0;
 
   for (uint8_t i : command)
-    checksum -= i;  // Add to checksum
+    checksum -= i; // Add to checksum
 
   command.push_back(checksum);
 
-  send_packet(command, type);  // Actually send the constructed packet
-} 
-
-void write_array(const std::vector<uint8_t> &packet) {
-    // Az adatok írása a soros portra
-    for (uint8_t i = 0; i < packet.size(); i++) {
-        Serial2.write(packet[i]);
-    }
+  send_packet(command, type); // Actually send the constructed packet
 }
 
-void send_packet(const std::vector<uint8_t> &packet, CommandType type) {
-  last_packet_sent_ = millis();  // Save the time when we sent the last packet
-
-  if (type != CommandType::Response)     // Don't wait for a response for responses
-    waiting_for_response_ = true;  // Mark that we are waiting for a response
-
-  write_array(packet);       // Write to UART
+void write_array(const std::vector<uint8_t> &packet)
+{
+  // Az adatok írása a soros portra
+  for (uint8_t i = 0; i < packet.size(); i++)
+  {
+    Serial2.write(packet[i]);
+  }
 }
 
-void handle_poll() {
-  if (millis() - last_packet_sent_ > POLL_INTERVAL) {
+void send_packet(const std::vector<uint8_t> &packet, CommandType type)
+{
+  last_packet_sent_ = millis(); // Save the time when we sent the last packet
+
+  if (type != CommandType::Response) // Don't wait for a response for responses
+    waiting_for_response_ = true;    // Mark that we are waiting for a response
+
+  write_array(packet); // Write to UART
+}
+
+void handle_poll()
+{
+  if (millis() - last_packet_sent_ > POLL_INTERVAL)
+  {
     Serial.println("Polling AC");
     sendMQTTMessage("Polling AC");
     send_command(CMD_POLL, CommandType::Normal, POLL_HEADER);
@@ -86,11 +121,13 @@ void onSerialData()
   }
 }
 
-String toHex(const char* buffer, size_t length) {
+String toHex(const char *buffer, size_t length)
+{
   String hexString;
-  const char* hexDigits = "0123456789ABCDEF";
+  const char *hexDigits = "0123456789ABCDEF";
 
-  for (size_t i = 0; i < length; i++) {
+  for (size_t i = 0; i < length; i++)
+  {
     hexString += hexDigits[(buffer[i] >> 4) & 0x0F];
     hexString += hexDigits[buffer[i] & 0x0F];
   }
@@ -98,6 +135,7 @@ String toHex(const char* buffer, size_t length) {
   return hexString;
 }
 
+// WEB
 void onRequest()
 {
   String html = "<html>\n<body>\n";
@@ -114,6 +152,36 @@ void onNotFound()
   server.send(404, "text/html", "<p1>Nem nyert</p1>");
 }
 
+void handleRoot()
+{ // A függvény, ami a főoldalt kiszolgálja
+  // Serial.print("Wifi mode: ");
+  // Serial.println(WiFi.getMode());
+  if (WiFi.getMode() == WIFI_STA)
+  {
+    server.send(200, "text/html", "<p1>Kapcsolat rendben</p1>");
+  }
+  else
+  {
+    server.send(200, "text/html", "<form method='POST' action='/connect'><label>SSID: </label><input type='text' name='ssid'><br><label>Password: </label><input type='password' name='password'><br><input type='submit' value='Connect'></form>"); // A form létrehozása az SSID és jelszó megadására
+  }
+}
+
+void handleConnect()
+{
+  String ssid = server.arg("ssid");
+  String password = server.arg("password");
+  saveWiFiCredentials(ssid.c_str(), password.c_str());
+  connectToRouter(ssid, password);
+  // server.send(200, "text/html", "Connected to WiFi!");  // A kapcsolódás visszajelzése
+}
+
+void handleGet()
+{
+  // Start status reading
+  server.send(200, "text/html", "readed info...");
+}
+
+// WIFI
 void saveWiFiCredentials(const char *ssid, const char *password)
 {
   // Wi-Fi hálózati adatok mentése az SPIFFS fájlrendszerbe
@@ -151,35 +219,6 @@ boolean readWiFiCredentials(char *ssid, char *password)
   return true;
 }
 
-void handleRoot()
-{ // A függvény, ami a főoldalt kiszolgálja
-  // Serial.print("Wifi mode: ");
-  // Serial.println(WiFi.getMode());
-  if (WiFi.getMode() == WIFI_STA)
-  {
-    server.send(200, "text/html", "<p1>Kapcsolat rendben</p1>");
-  }
-  else
-  {
-    server.send(200, "text/html", "<form method='POST' action='/connect'><label>SSID: </label><input type='text' name='ssid'><br><label>Password: </label><input type='password' name='password'><br><input type='submit' value='Connect'></form>"); // A form létrehozása az SSID és jelszó megadására
-  }
-}
-
-void handleConnect()
-{
-  String ssid = server.arg("ssid");
-  String password = server.arg("password");
-  saveWiFiCredentials(ssid.c_str(), password.c_str());
-  connectToRouter(ssid, password);
-  // server.send(200, "text/html", "Connected to WiFi!");  // A kapcsolódás visszajelzése
-}
-
-void handleGet()
-{
-  // Start status reading
-  server.send(200, "text/html", "readed info...");
-}
-
 void connectToRouter(String ssid, String password)
 {
   Serial.print(ssid);
@@ -211,12 +250,13 @@ void connectToRouter(String ssid, String password)
 void createAP()
 {
   WiFi.mode(WIFI_AP);                  // AP módban indítás
-  WiFi.softAP("ESP32-AP", "almaalma"); // Az AP beállítása
+  WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PWD); // Az AP beállítása
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP-cím: ");
   Serial.println(myIP);
 }
 
+// Timer
 void timer()
 {
   unsigned long currentMillis = millis(); // aktuális idő lekérdezése
@@ -234,49 +274,14 @@ void flashLed()
   digitalWrite(ledPin, !digitalRead(ledPin)); // LED állapotának megfordítása
 }
 
-void sendMQTTMessage(String payload)
-{
-  Serial.println(payload);
-
-  String mqttTopic = topic;
-  String mqttPayload = payload;
-
-  Serial.print("Sending (");
-  Serial.print(mqttTopic);
-  Serial.print("): ");
-  Serial.println(mqttPayload);
-
-  if (!mqttClient.connected())
-  {
-    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
-    {
-      Serial.println("Connected to MQTT broker");
-    }
-    else
-    {
-      Serial.print("Failed to connect to MQTT broker, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" retrying later");
-    }
-  }
-  if (mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str()))
-  {
-    Serial.println("Message published successfully.");
-  }
-  else
-  {
-    Serial.print("Error publishing message. Error code: ");
-    Serial.println(mqttClient.state());
-  }
-}
-
+// SETUP
 void setup()
 {
-  Serial.begin(115200);
-  Serial2.begin(115200, SERIAL_8N1, 16, -1, true);
-  Serial2.setTimeout(READ_TIMEOUT);
+  Serial.begin(Serial_Baud);
+  Serial2.begin(ACSerial_Baud, SERIAL_8N1, ACSerial_RX, ACSerial_TX, false, READ_TIMEOUT);
 
   pinMode(ledPin, OUTPUT); // LED lábának beállítása kimenetre
+  pinMode(ACSerial_TX, OUTPUT);
 
   // SPIFFS inicializálása
   if (!SPIFFS.begin(true))
@@ -323,6 +328,7 @@ void setup()
   Serial.println("MQTT connected.");
 }
 
+// LOOP
 void loop()
 {
   server.handleClient(); // A klienst kezelő függvény hívása
@@ -330,11 +336,4 @@ void loop()
   onSerialData();
   mqttClient.loop();
   timer();
-  // Serial.print("Wifi mode: ");
-  // Serial.println(WiFi.getMode());
-  // Serial.print("Kapott IP-cím: ");
-  // Serial.println(WiFi.localIP());
-  // Serial.print("AP IP-cím: ");
-  // Serial.println(WiFi.softAPIP());
-  // delay(1000);
 }
