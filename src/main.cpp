@@ -107,21 +107,13 @@ void onSerialData()
     {
       Serial.print("Serial data: ");
       Serial.println(data);
-      if (data.length() > MAX_STRING_LENGTH)
-      {
-        strcpy(buffer, data.substring(0, MAX_STRING_LENGTH - 1).c_str());
-        sendMQTTMessage(data.substring(0, MAX_STRING_LENGTH - 1));
-      }
-      else
-      {
-        strcpy(buffer, data.c_str());
-        sendMQTTMessage(data);
-      }
+      buffer = data;
+      sendMQTTMessage(data);
     }
   }
 }
 
-String toHex(const char *buffer, size_t length)
+String toHex(String buffer, size_t length)
 {
   String hexString;
   const char *hexDigits = "0123456789ABCDEF";
@@ -249,7 +241,7 @@ void connectToRouter(String ssid, String password)
 
 void createAP()
 {
-  WiFi.mode(WIFI_AP);                  // AP módban indítás
+  WiFi.mode(WIFI_AP);                     // AP módban indítás
   WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PWD); // Az AP beállítása
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP-cím: ");

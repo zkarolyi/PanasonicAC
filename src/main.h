@@ -12,8 +12,7 @@ void sendMQTTMessage(String payload);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 
 // AC Serial
-const int MAX_STRING_LENGTH = 128;
-char buffer[MAX_STRING_LENGTH]; // MAX_STRING_LENGTH a legnagyobb várható string hossza
+String buffer;
 static const uint8_t READ_TIMEOUT = 20; // The maximum time to wait before considering a packet complete
 static const int POLL_INTERVAL = 5000;  // The interval at which to poll the AC
 static const std::vector<uint8_t> CMD_POLL = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
