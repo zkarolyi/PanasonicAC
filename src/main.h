@@ -18,8 +18,8 @@ static const int POLL_INTERVAL = 5000;  // The interval at which to poll the AC
 static const std::vector<uint8_t> CMD_POLL = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t CTRL_HEADER = 0xF0; // The header for control frames
 static const uint8_t POLL_HEADER = 0x70; // The header for the poll command
-uint32_t last_packet_sent_;              // Stores the time at which the last packet was sent
-bool waiting_for_response_ = false;      // Set to true if we are waiting for a response
+uint32_t last_packet_sent;              // Stores the time at which the last packet was sent
+bool waiting_for_response = false;      // Set to true if we are waiting for a response
 enum class CommandType
 {
     Normal,
@@ -50,6 +50,9 @@ char password[64];
 WebServer server(80); // A WebServer objektum inicializálása, 80-as porton
 const char *WIFI_AP_SSID = "ESP32-AP";
 const char *WIFI_AP_PWD = "almaalma";
+unsigned long apActiveMillis = 0; // mennyi ideje van AP módban a WIFI. 0: nem AP módban van
+const long apInterval = 600000; // AP mód timeout
+
 
 void saveWiFiCredentials(const char *ssid, const char *password);
 boolean readWiFiCredentials(char *ssid, char *password);
@@ -69,4 +72,4 @@ void flashLed();
 const int wdtTimeOut = 12;
 
 // OTA
-const char *OTA_HOSTNAME = "PanasonicAC"; // Sorszám kell majd bele
+const char *OTA_HOSTNAME = "PanasonicAC"; // Add num to it
