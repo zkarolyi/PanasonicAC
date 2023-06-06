@@ -64,3 +64,9 @@ const unsigned long Serial_Baud = 115200;
 
 void timer();
 void flashLed();
+
+// WDT
+const int wdtTimeOut = 12;
+
+// OTA
+const char *OTA_HOSTNAME = "PanasonicAC"; // Sorszám kell majd bele
