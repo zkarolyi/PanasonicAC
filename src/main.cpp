@@ -82,17 +82,17 @@ void write_array(const std::vector<uint8_t> &packet)
 
 void send_packet(const std::vector<uint8_t> &packet, CommandType type)
 {
-  last_packet_sent_ = millis(); // Save the time when we sent the last packet
+  last_packet_sent = millis(); // Save the time when we sent the last packet
 
   if (type != CommandType::Response) // Don't wait for a response for responses
-    waiting_for_response_ = true;    // Mark that we are waiting for a response
+    waiting_for_response = true;    // Mark that we are waiting for a response
 
   write_array(packet); // Write to UART
 }
 
 void handle_poll()
 {
-  if (millis() - last_packet_sent_ > POLL_INTERVAL)
+  if (millis() - last_packet_sent > POLL_INTERVAL)
   {
     Serial.println("Polling AC");
     sendMQTTMessage("Polling AC");
@@ -236,6 +236,7 @@ void connectToRouter(String ssid, String password)
     return;
   }
 
+  apActiveMillis = 0;
   Serial.println("Connected to WiFi");
   Serial.print("Kapott IP-cím: ");
   Serial.println(WiFi.localIP());
@@ -248,6 +249,7 @@ void createAP()
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP-cím: ");
   Serial.println(myIP);
+  apActiveMillis = millis();
 }
 
 // Timer
@@ -259,12 +261,19 @@ void timer()
   {                                 // ha eltelt a megadott idő
     previousMillis = currentMillis; // frissítjük az előző időt
     flashLed();
+    esp_task_wdt_reset();
     handle_poll();
+  }
+  if(apActiveMillis > 0 && currentMillis - apActiveMillis >= apInterval)
+  {
+    Serial.println("WIFI AP mode timed out. Restarting...");
+    ESP.restart();
   }
 }
 
 void flashLed()
 {
+  sendMQTTMessage("Ping");
   digitalWrite(ledPin, !digitalRead(ledPin)); // LED állapotának megfordítása
 }
 
@@ -307,6 +316,8 @@ void setup()
   server.serveStatic("/", SPIFFS, "/");
   server.onNotFound(onNotFound);
   server.begin(); // A WebServer elindítása
+
+  last_packet_sent = millis(); // set up last send timeout
 
   Serial.println("Starting MQTT");
   mqttClient.setServer(mqttBroker, mqttPort);
@@ -353,7 +364,10 @@ void setup()
       .onEnd([]()
              { Serial.println("\nEnd"); })
       .onProgress([](unsigned int progress, unsigned int total)
-                  { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); })
+                  { 
+                    Serial.printf("Progress: %u%%\r", (progress / (total / 100))); 
+                    esp_task_wdt_reset();
+                  })
       .onError([](ota_error_t error)
                {
       Serial.printf("Error[%u]: ", error);
@@ -373,5 +387,6 @@ void loop()
   // Serial.println("Loop...");
   onSerialData();
   mqttClient.loop();
+  ArduinoOTA.handle();
   timer();
 }
