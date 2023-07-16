@@ -14,7 +14,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length);
 // AC Serial
 String buffer;
 static const uint8_t READ_TIMEOUT = 20; // The maximum time to wait before considering a packet complete
-static const int POLL_INTERVAL = 5000;  // The interval at which to poll the AC
+static const int POLL_INTERVAL = 10000;  // The interval at which to poll the AC
 static const std::vector<uint8_t> CMD_POLL = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t CTRL_HEADER = 0xF0; // The header for control frames
 static const uint8_t POLL_HEADER = 0x70; // The header for the poll command
@@ -35,7 +35,7 @@ void write_array(const std::vector<uint8_t> &packet);
 void send_packet(const std::vector<uint8_t> &packet, CommandType type);
 void handle_poll();
 void onSerialData();
-String toHex(const char *buffer, size_t length);
+String toHex(String, size_t length);
 
 // WEB
 void onRequest();
@@ -62,7 +62,7 @@ void createAP();
 // Timer
 const int ledPin = 2;             // beépített LED lába
 unsigned long previousMillis = 0; // változó az időzítéshez
-const long interval = 1000;       // az időköz, amelyenként villog a LED
+const long interval = 2000;       // az időköz, amelyenként villog a LED
 const unsigned long Serial_Baud = 115200;
 
 void timer();

@@ -76,8 +76,13 @@ void write_array(const std::vector<uint8_t> &packet)
   // Az adatok írása a soros portra
   for (uint8_t i = 0; i < packet.size(); i++)
   {
+    // Debug... toHex(buffer, sizeof(buffer));
+    Serial.print(packet[i] < 16 ? "0" : "");
+    Serial.print(packet[i], HEX);
+    Serial.print(" ");
     Serial2.write(packet[i]);
   }
+  Serial.println();
 }
 
 void send_packet(const std::vector<uint8_t> &packet, CommandType type)
@@ -85,7 +90,7 @@ void send_packet(const std::vector<uint8_t> &packet, CommandType type)
   last_packet_sent = millis(); // Save the time when we sent the last packet
 
   if (type != CommandType::Response) // Don't wait for a response for responses
-    waiting_for_response = true;    // Mark that we are waiting for a response
+    waiting_for_response = true;     // Mark that we are waiting for a response
 
   write_array(packet); // Write to UART
 }
@@ -104,13 +109,16 @@ void onSerialData()
 {
   if (Serial2.available())
   {
+    sendMQTTMessage("Receiving...");
     String data = Serial2.readString();
     if (data.length() > 0)
     {
-      Serial.print("Serial data: ");
-      Serial.println(data);
+      Serial.print("Serial data (hex): ");
+      String dataHex = toHex(data, data.length());
+      Serial.println(dataHex);
+
       buffer = data;
-      sendMQTTMessage(data);
+      sendMQTTMessage(dataHex);
     }
   }
 }
@@ -122,6 +130,8 @@ String toHex(String buffer, size_t length)
 
   for (size_t i = 0; i < length; i++)
   {
+    if (i > 0)
+      hexString += " ";
     hexString += hexDigits[(buffer[i] >> 4) & 0x0F];
     hexString += hexDigits[buffer[i] & 0x0F];
   }
@@ -264,7 +274,7 @@ void timer()
     esp_task_wdt_reset();
     handle_poll();
   }
-  if(apActiveMillis > 0 && currentMillis - apActiveMillis >= apInterval)
+  if (apActiveMillis > 0 && currentMillis - apActiveMillis >= apInterval)
   {
     Serial.println("WIFI AP mode timed out. Restarting...");
     ESP.restart();
@@ -284,9 +294,9 @@ void setup()
   Serial2.begin(ACSerial_Baud, SERIAL_8N1, ACSerial_RX, ACSerial_TX, false, READ_TIMEOUT);
 
   pinMode(ledPin, OUTPUT); // LED lábának beállítása kimenetre
-  pinMode(ACSerial_TX, OUTPUT);
+  // ?? pinMode(ACSerial_TX, OUTPUT);
 
- // Watchdog beállítása 12 másodperces időkorlátra
+  // Watchdog beállítása 12 másodperces időkorlátra
   esp_task_wdt_init(wdtTimeOut, true);
   esp_task_wdt_add(NULL);
 
@@ -321,23 +331,23 @@ void setup()
 
   Serial.println("Starting MQTT");
   mqttClient.setServer(mqttBroker, mqttPort);
-  // mqttClient.setCallback(mqttCallback);
-  // int tryMqtt = 0;
-  // while (!mqttClient.connected() && tryMqtt++ < 5)
-  // {
-  //   if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
-  //   {
-  //     mqttClient.subscribe(topic);
-  //   }
-  //   else
-  //   {
-  //     Serial.println("Waitinf for MQTT - " + tryMqtt);
-  //     delay(1000);
-  //   }
-  // }
+  mqttClient.setCallback(mqttCallback);
+  int tryMqtt = 0;
+  while (!mqttClient.connected() && tryMqtt++ < 5)
+  {
+    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
+    {
+      mqttClient.subscribe(topic);
+    }
+    else
+    {
+      Serial.println("Waitinf for MQTT - " + tryMqtt);
+      delay(1000);
+    }
+  }
   Serial.println("MQTT connected.");
 
-// OTA
+  // OTA
   // Port defaults to 3232
   // ArduinoOTA.setPort(3232);
   //
@@ -366,8 +376,7 @@ void setup()
       .onProgress([](unsigned int progress, unsigned int total)
                   { 
                     Serial.printf("Progress: %u%%\r", (progress / (total / 100))); 
-                    esp_task_wdt_reset();
-                  })
+                    esp_task_wdt_reset(); })
       .onError([](ota_error_t error)
                {
       Serial.printf("Error[%u]: ", error);
