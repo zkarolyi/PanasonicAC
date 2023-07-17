@@ -26,7 +26,9 @@ enum class CommandType
     Response,
     Resend
 };
-const unsigned long ACSerial_Baud = 115200;
+// Communication parameters: TTL 5V UART 9600,8,E,1 
+// const unsigned long ACSerial_Baud = 115200;
+const unsigned long ACSerial_Baud = 9600;
 const int ACSerial_RX = 16;
 const int ACSerial_TX = 17;
 
