@@ -109,7 +109,7 @@ void onSerialData()
 {
   if (Serial2.available())
   {
-    sendMQTTMessage("Receiving...");
+    // sendMQTTMessage("Receiving...");
     String data = Serial2.readString();
     if (data.length() > 0)
     {
@@ -291,7 +291,7 @@ void flashLed()
 void setup()
 {
   Serial.begin(Serial_Baud);
-  Serial2.begin(ACSerial_Baud, SERIAL_8N1, ACSerial_RX, ACSerial_TX, false, READ_TIMEOUT);
+  Serial2.begin(ACSerial_Baud, SERIAL_8E1, ACSerial_RX, ACSerial_TX, false, READ_TIMEOUT);
 
   pinMode(ledPin, OUTPUT); // LED lábának beállítása kimenetre
   // ?? pinMode(ACSerial_TX, OUTPUT);
