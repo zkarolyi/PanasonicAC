@@ -68,6 +68,8 @@ void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header
 
   command.push_back(checksum);
 
+  sendMQTTMessage("Command: " + toHex(command));
+
   send_packet(command, type); // Actually send the constructed packet
 }
 
@@ -105,6 +107,40 @@ void handle_poll()
   }
 }
 
+String verify_packet(String packet)
+{
+  if (packet.length() < 12)
+  {
+    return "Invalid packet length";
+  }
+
+  // Check if header matches
+  if (packet[0] != CTRL_HEADER && packet[0] != POLL_HEADER)
+  {
+    return "Invalid packet header";
+  }
+
+  // Packet length minus header, packet length and checksum
+  if (packet[1] != packet.length() - 3)
+  {
+    return "Invalid packet lenght header";
+  }
+
+  uint8_t checksum = 0;
+
+  for (uint8_t b : packet)
+  {
+    checksum += b;
+  }
+
+  if (checksum != 0)
+  {
+    return "Invalic packet checksum";
+  }
+
+  return "";
+}
+
 void onSerialData()
 {
   if (Serial2.available())
@@ -117,10 +153,40 @@ void onSerialData()
       String dataHex = toHex(data, data.length());
       Serial.println(dataHex);
 
-      buffer = data;
-      sendMQTTMessage(dataHex);
+      if (String msg = verify_packet(data))
+      {
+        ac.loadFromPacket(data);
+        sendMQTTMessage(dataHex);
+      }
+      else
+      {
+        sendMQTTMessage(msg);
+      }
     }
   }
+}
+
+void setTemp(int temp)
+{
+  ac.setTargetTemperature(temp);
+  std::vector<uint8_t> dataVect = ac.getData();
+
+  sendMQTTMessage("Command: " + toHex(dataVect));
+
+  // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+}
+
+String toHex(std::vector<uint8_t> buffer){
+  String hexString = "";
+
+  for (uint8_t byte : buffer)
+  {
+    char hex[3];
+    sprintf(hex, "%02X", byte);
+    hexString += hex;
+  }
+
+  return hexString;
 }
 
 String toHex(String buffer, size_t length)
@@ -143,11 +209,16 @@ String toHex(String buffer, size_t length)
 void onRequest()
 {
   String html = "<html>\n<body>\n";
-  html += buffer;
+  html += ac.toJsonString();
   html += "<br/>\n";
-  html += toHex(buffer, sizeof(buffer));
+  html += ac.toJsonStringStructured();
+  html += "<br/>\n";
+  html += toHex(ac.getData());
   html += "<br/>\n";
   html += "</body>\n</html>\n";
+
+  setTemp(26);
+
   server.send(200, "text/html", html);
 }
 
