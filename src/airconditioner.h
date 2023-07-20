@@ -172,29 +172,6 @@ public:
     }
 
     // Methods
-    String toJsonString() const
-    {
-        StaticJsonDocument<200> jsonDocument;
-        JsonObject jsonObject = jsonDocument.to<JsonObject>();
-
-        jsonObject["internalTemperature"] = internalTemperature_;
-        jsonObject["externalTemperature"] = externalTemperature_;
-        jsonObject["targetTemperature"] = targetTemperature_;
-        jsonObject["mode"] = static_cast<int>(mode_);
-        jsonObject["modeText"] = modeToString(mode_);
-        jsonObject["fanSpeed"] = static_cast<int>(fanSpeed_);
-        jsonObject["fanSpeedText"] = fanSpeedToString(fanSpeed_);
-        jsonObject["swingMode"] = static_cast<int>(swingMode_);
-        jsonObject["swingModeText"] = swingModeToString(swingMode_);
-        jsonObject["preset"] = static_cast<int>(preset_);
-        jsonObject["presetText"] = presetToString(preset_);
-        jsonObject["acState"] = static_cast<int>(acState_);
-
-        String jsonString;
-        serializeJson(jsonObject, jsonString);
-        return jsonString;
-    }
-
     String toJsonStringStructured() const
     {
         StaticJsonDocument<300> jsonDocument;

@@ -52,11 +52,49 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     message += (char)payload[i];
   }
 
+  String topicStr = "";
+  for (int i = 0; i < strlen(topic); i++)
+  {
+    topicStr += (char)topic[i];
+  }
+
   sendMQTTMessage("Get something...");
-  if (strcmp(topic, acTopicSetTemperature.c_str()))
+  if (topicStr == acTopicSetTemperature)
   {
     sendMQTTMessage("Get Temp: " + message);
     ac.setTargetTemperature(message.toInt());
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTMessage("Command: " + toHex(dataVect));
+    send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+  }
+  if (topicStr == acTopicSetMode)
+  {
+    sendMQTTMessage("Get Mode: " + message);
+    ac.setMode((AirConditioner::Mode)(message.toInt()));
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTMessage("Command: " + toHex(dataVect));
+    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+  }
+  if (topicStr == acTopicSetFanSpeed)
+  {
+    sendMQTTMessage("Get FanSpeed: " + message);
+    ac.setFanSpeed((AirConditioner::FanSpeed)(message.toInt()));
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTMessage("Command: " + toHex(dataVect));
+    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+  }
+  if (topicStr == acTopicSetSwing)
+  {
+    sendMQTTMessage("Get Swing: " + message);
+    ac.setSwingMode((AirConditioner::SwingMode)(message.toInt()));
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTMessage("Command: " + toHex(dataVect));
+    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+  }
+  if (topicStr == acTopicSetPreset)
+  {
+    sendMQTTMessage("Get Preset: " + message);
+    ac.setPreset((AirConditioner::Preset)(message.toInt()));
     std::vector<uint8_t> dataVect = ac.getData();
     sendMQTTMessage("Command: " + toHex(dataVect));
     // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
@@ -181,16 +219,6 @@ void onSerialData()
   }
 }
 
-void setTemp(int temp)
-{
-  ac.setTargetTemperature(temp);
-  std::vector<uint8_t> dataVect = ac.getData();
-
-  sendMQTTMessage("Command: " + toHex(dataVect));
-
-  // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
-}
-
 String toHex(std::vector<uint8_t> buffer)
 {
   String hexString = "";
@@ -225,15 +253,11 @@ String toHex(String buffer, size_t length)
 void onRequest()
 {
   String html = "<html>\n<body>\n";
-  html += ac.toJsonString();
-  html += "<br/>\n";
   html += ac.toJsonStringStructured();
   html += "<br/>\n";
   html += toHex(ac.getData());
   html += "<br/>\n";
   html += "</body>\n</html>\n";
-
-  setTemp(26);
 
   server.send(200, "text/html", html);
 }

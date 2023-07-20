@@ -7,8 +7,12 @@ const char *clientId = "PanasonicAC"; // Add num to it
 const char *mqttUsername = "openhabian";
 const char *mqttPassword = "openhabian";
 String acTopicSend = "PanasonicAC/out/"; // Add num to it
-String acTopicSet = "PanasonicAC/set/";
+String acTopicSet = "PanasonicAC/set/#";
 String acTopicSetTemperature = "PanasonicAC/set/temperature/";
+String acTopicSetMode = "PanasonicAC/set/mode/";
+String acTopicSetFanSpeed = "PanasonicAC/set/fanspeed/";
+String acTopicSetSwing = "PanasonicAC/set/swing/";
+String acTopicSetPreset = "PanasonicAC/set/preset/";
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
