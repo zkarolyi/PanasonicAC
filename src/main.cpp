@@ -12,11 +12,10 @@ void sendMQTTMessage(String payload)
 {
   Serial.println(payload);
 
-  String mqttTopic = topic;
   String mqttPayload = payload;
 
   Serial.print("Sending (");
-  Serial.print(mqttTopic);
+  Serial.print(acTopicSend);
   Serial.print("): ");
   Serial.println(mqttPayload);
 
@@ -33,7 +32,7 @@ void sendMQTTMessage(String payload)
       Serial.println(" retrying later");
     }
   }
-  if (mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str()))
+  if (mqttClient.publish(acTopicSend.c_str(), mqttPayload.c_str()))
   {
     Serial.println("Message published successfully.");
   }
@@ -47,6 +46,22 @@ void sendMQTTMessage(String payload)
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   // handle incoming messages here
+  String message = "";
+  for (int i = 0; i < length; i++)
+  {
+    message += (char)payload[i];
+  }
+
+  sendMQTTMessage("Get something...");
+  if (strcmp(topic, acTopicSetTemperature.c_str()))
+  {
+    sendMQTTMessage("Get Temp: " + message);
+    ac.setTargetTemperature(message.toInt());
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTMessage("Command: " + toHex(dataVect));
+    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+  }
+
   Serial.print("Received something on MQTT (");
   Serial.print(topic);
   Serial.print(") -> ");
@@ -176,7 +191,8 @@ void setTemp(int temp)
   // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
 }
 
-String toHex(std::vector<uint8_t> buffer){
+String toHex(std::vector<uint8_t> buffer)
+{
   String hexString = "";
 
   for (uint8_t byte : buffer)
@@ -408,7 +424,7 @@ void setup()
   {
     if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
     {
-      mqttClient.subscribe(topic);
+      mqttClient.subscribe(acTopicSet.c_str());
     }
     else
     {

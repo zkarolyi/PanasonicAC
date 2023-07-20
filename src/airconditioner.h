@@ -71,18 +71,21 @@ public:
     {
         data_ = std::vector<uint8_t>(packet.begin() + 2, packet.begin() + 12);
 
-        mode_ = (Mode)packet[2];
-        fanSpeed_ = (FanSpeed)packet[5];
-        swingMode_ = (SwingMode)packet[6];
-        preset_ = (Preset)packet[7];
+        if (acState_ != ACState::Ready)
+        {
+            mode_ = (Mode)packet[2];
+            fanSpeed_ = (FanSpeed)packet[5];
+            swingMode_ = (SwingMode)packet[6];
+            preset_ = (Preset)packet[7];
 
-        targetTemperature_ = packet[3] * 0.5;
-        if (packet[18] != 0x80)
-            internalTemperature_ = packet[18];
-        if (packet[19] != 0x80)
-            externalTemperature_ = packet[19];
+            targetTemperature_ = packet[3] * 0.5;
+            if (packet[18] != 0x80)
+                internalTemperature_ = packet[18];
+            if (packet[19] != 0x80)
+                externalTemperature_ = packet[19];
 
-        acState_ = ACState::Ready;
+            acState_ = ACState::Ready;
+        }
     }
 
     void setTargetTemperature(float temperature)
@@ -153,7 +156,19 @@ public:
 
     std::vector<uint8_t> getData() const
     {
-        return data_;
+        std::vector<uint8_t> data(data_.size());
+        for (size_t i = 0; i < data_.size(); ++i)
+        {
+            data[i] = data_[i];
+        }
+
+        data[0] = (int)mode_;
+        data[3] = (int)fanSpeed_;
+        data[4] = (int)swingMode_;
+        data[5] = (int)preset_;
+
+        data[1] = targetTemperature_ * 2;
+        return data;
     }
 
     // Methods

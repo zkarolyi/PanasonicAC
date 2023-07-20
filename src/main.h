@@ -6,7 +6,9 @@ const int mqttPort = 1883;
 const char *clientId = "PanasonicAC"; // Add num to it
 const char *mqttUsername = "openhabian";
 const char *mqttPassword = "openhabian";
-const char *topic = "PanasonicAC/"; // Add num to it
+String acTopicSend = "PanasonicAC/out/"; // Add num to it
+String acTopicSet = "PanasonicAC/set/";
+String acTopicSetTemperature = "PanasonicAC/set/temperature/";
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
