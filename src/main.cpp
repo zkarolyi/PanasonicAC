@@ -63,41 +63,31 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   {
     sendMQTTMessage("Get Temp: " + message);
     ac.setTargetTemperature(message.toInt());
-    std::vector<uint8_t> dataVect = ac.getData();
-    sendMQTTMessage("Command: " + toHex(dataVect));
-    send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+    send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetMode)
   {
     sendMQTTMessage("Get Mode: " + message);
-    ac.setMode((AirConditioner::Mode)(message.toInt()));
-    std::vector<uint8_t> dataVect = ac.getData();
-    sendMQTTMessage("Command: " + toHex(dataVect));
-    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+    ac.setMode(message.c_str());
+    send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetFanSpeed)
   {
     sendMQTTMessage("Get FanSpeed: " + message);
-    ac.setFanSpeed((AirConditioner::FanSpeed)(message.toInt()));
-    std::vector<uint8_t> dataVect = ac.getData();
-    sendMQTTMessage("Command: " + toHex(dataVect));
-    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+    ac.setFanSpeed(message.c_str());
+    send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetSwing)
   {
     sendMQTTMessage("Get Swing: " + message);
-    ac.setSwingMode((AirConditioner::SwingMode)(message.toInt()));
-    std::vector<uint8_t> dataVect = ac.getData();
-    sendMQTTMessage("Command: " + toHex(dataVect));
-    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+    ac.setSwingMode(message.c_str());
+    send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetPreset)
   {
     sendMQTTMessage("Get Preset: " + message);
-    ac.setPreset((AirConditioner::Preset)(message.toInt()));
-    std::vector<uint8_t> dataVect = ac.getData();
-    sendMQTTMessage("Command: " + toHex(dataVect));
-    // send_command(dataVect, CommandType::Normal, CTRL_HEADER);
+    ac.setPreset(message.c_str());
+    send_command(CommandType::Normal, CTRL_HEADER);
   }
 
   Serial.print("Received something on MQTT (");
@@ -108,6 +98,13 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 }
 
 // AC Serial
+void send_command(CommandType type, uint8_t header = CTRL_HEADER)
+{
+  std::vector<uint8_t> dataVect = ac.getData();
+  sendMQTTMessage("Command: " + toHex(dataVect));
+  send_command(dataVect, type, header);
+}
+
 void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header = CTRL_HEADER)
 {
   uint8_t length = command.size();
@@ -121,7 +118,7 @@ void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header
 
   command.push_back(checksum);
 
-  sendMQTTMessage("Command: " + toHex(command));
+  sendMQTTMessage("Command full: " + toHex(command));
 
   send_packet(command, type); // Actually send the constructed packet
 }

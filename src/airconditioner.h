@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <unordered_map>
 
 class AirConditioner
 {
@@ -93,9 +94,18 @@ public:
         targetTemperature_ = temperature;
     }
 
+    void setMode(const char * str){
+        mode_ = stringToMode(str, Mode::Off);
+    }
+
     void setMode(Mode mode)
     {
         mode_ = mode;
+    }
+
+    void setFanSpeed(const char * str)
+    {
+        fanSpeed_ = stringToFanSpeed(str, FanSpeed::Auto);
     }
 
     void setFanSpeed(FanSpeed speed)
@@ -103,9 +113,19 @@ public:
         fanSpeed_ = speed;
     }
 
+    void setSwingMode(const char * str)
+    {
+        swingMode_ = stringToSwingMode(str, SwingMode::Auto);
+    }
+
     void setSwingMode(SwingMode mode)
     {
         swingMode_ = mode;
+    }
+
+    void setPreset(const char * str)
+    {
+        preset_ = stringToPreset(str, Preset::Normal);
     }
 
     void setPreset(Preset preset)
@@ -217,84 +237,177 @@ private:
     ACState acState_;
     std::vector<uint8_t> data_;
 
-    // Helper functions to convert enum values to strings
-    const char *modeToString(Mode mode) const
+    // Helper functions to convert enum values to strings and back
+    template <typename Enum>
+    const char *enumToString(Enum enumValue, const std::unordered_map<std::string, Enum> &enumMap) const
     {
-        switch (mode)
+        for (const auto &entry : enumMap)
         {
-        case Mode::HeatCool:
-            return "Heat/Cool";
-        case Mode::Cool:
-            return "Cool";
-        case Mode::Heat:
-            return "Heat";
-        case Mode::Dry:
-            return "Dry";
-        case Mode::FanOnly:
-            return "FanOnly";
-        case Mode::Off:
-            return "Off";
-        default:
-            return "Unknown";
+            if (entry.second == enumValue)
+            {
+                return entry.first.c_str();
+            }
         }
+        return "Unknown";
     }
 
-    const char *fanSpeedToString(FanSpeed speed) const
+    template <typename Enum>
+    Enum stringToEnum(const char *str, const std::unordered_map<std::string, Enum> &enumMap, Enum defaultValue) const
     {
-        switch (speed)
+        auto it = enumMap.find(str);
+        if (it != enumMap.end())
         {
-        case FanSpeed::Auto:
-            return "Auto";
-        case FanSpeed::Speed1:
-            return "1";
-        case FanSpeed::Speed2:
-            return "2";
-        case FanSpeed::Speed3:
-            return "3";
-        case FanSpeed::Speed4:
-            return "4";
-        case FanSpeed::Speed5:
-            return "5";
-        default:
-            return "Unknown";
+            return it->second;
         }
+        return defaultValue;
+    }
+
+    std::unordered_map<std::string, Mode> modeMap = {
+        {"Heat/Cool", Mode::HeatCool},
+        {"Cool", Mode::Cool},
+        {"Heat", Mode::Heat},
+        {"Dry", Mode::Dry},
+        {"FanOnly", Mode::FanOnly},
+        {"Off", Mode::Off}};
+
+    std::unordered_map<std::string, FanSpeed> fanSpeedMap = {
+        {"Auto", FanSpeed::Auto},
+        {"1", FanSpeed::Speed1},
+        {"2", FanSpeed::Speed2},
+        {"3", FanSpeed::Speed3},
+        {"4", FanSpeed::Speed4},
+        {"5", FanSpeed::Speed5}};
+
+    std::unordered_map<std::string, SwingMode> swingModeMap = {
+        {"Auto", SwingMode::Auto},
+        {"Up", SwingMode::Up},
+        {"UpCenter", SwingMode::UpCenter},
+        {"Center", SwingMode::Center},
+        {"DownCenter", SwingMode::DownCenter},
+        {"Down", SwingMode::Down}};
+
+    std::unordered_map<std::string, Preset> presetMap = {
+        {"Normal", Preset::Normal},
+        {"Powerful", Preset::Powerful},
+        {"Quiet", Preset::Quiet}};
+
+    const char *modeToString(Mode mode) const
+    {
+        return enumToString(mode, modeMap);
+    }
+
+    Mode stringToMode(const char *str, Mode defaultValue) const
+    {
+        return stringToEnum(str, modeMap, defaultValue);
+    }
+
+    const char *fanSpeedToString(FanSpeed enumValue) const
+    {
+        return enumToString(enumValue, fanSpeedMap);
+    }
+
+    FanSpeed stringToFanSpeed(const char *str, FanSpeed defaultValue) const
+    {
+        return stringToEnum(str, fanSpeedMap, defaultValue);
     }
 
     const char *swingModeToString(SwingMode mode) const
     {
-        switch (mode)
-        {
-        case SwingMode::Auto:
-            return "Auto";
-        case SwingMode::Up:
-            return "Up";
-        case SwingMode::UpCenter:
-            return "UpCenter";
-        case SwingMode::Center:
-            return "Center";
-        case SwingMode::DownCenter:
-            return "DownCenter";
-        case SwingMode::Down:
-            return "Down";
-        default:
-            return "Unknown";
-        }
+        return enumToString(mode, swingModeMap);
+    }
+
+    SwingMode stringToSwingMode(const char *str, SwingMode defaultValue) const
+    {
+        return stringToEnum(str, swingModeMap, defaultValue);
     }
 
     const char *presetToString(Preset preset) const
     {
-        switch (preset)
-        {
-        case Preset::Normal:
-            return "Normal";
-        case Preset::Powerful:
-            return "Powerful";
-        case Preset::Quiet:
-            return "Quiet";
-        default:
-            return "Unknown";
-        }
+        return enumToString(preset, presetMap);
     }
+
+    Preset stringToPreset(const char *str, Preset defaultValue) const
+    {
+        return stringToEnum(str, presetMap, defaultValue);
+    }
+
+    // const char *modeToString(Mode mode) const
+    // {
+    //     switch (mode)
+    //     {
+    //     case Mode::HeatCool:
+    //         return "Heat/Cool";
+    //     case Mode::Cool:
+    //         return "Cool";
+    //     case Mode::Heat:
+    //         return "Heat";
+    //     case Mode::Dry:
+    //         return "Dry";
+    //     case Mode::FanOnly:
+    //         return "FanOnly";
+    //     case Mode::Off:
+    //         return "Off";
+    //     default:
+    //         return "Unknown";
+    //     }
+    // }
+
+    // const char *fanSpeedToString(FanSpeed speed) const
+    // {
+    //     switch (speed)
+    //     {
+    //     case FanSpeed::Auto:
+    //         return "Auto";
+    //     case FanSpeed::Speed1:
+    //         return "1";
+    //     case FanSpeed::Speed2:
+    //         return "2";
+    //     case FanSpeed::Speed3:
+    //         return "3";
+    //     case FanSpeed::Speed4:
+    //         return "4";
+    //     case FanSpeed::Speed5:
+    //         return "5";
+    //     default:
+    //         return "Unknown";
+    //     }
+    // }
+
+    // const char *swingModeToString(SwingMode mode) const
+    // {
+    //     switch (mode)
+    //     {
+    //     case SwingMode::Auto:
+    //         return "Auto";
+    //     case SwingMode::Up:
+    //         return "Up";
+    //     case SwingMode::UpCenter:
+    //         return "UpCenter";
+    //     case SwingMode::Center:
+    //         return "Center";
+    //     case SwingMode::DownCenter:
+    //         return "DownCenter";
+    //     case SwingMode::Down:
+    //         return "Down";
+    //     default:
+    //         return "Unknown";
+    //     }
+    // }
+
+    // const char *presetToString(Preset preset) const
+    // {
+    //     switch (preset)
+    //     {
+    //     case Preset::Normal:
+    //         return "Normal";
+    //     case Preset::Powerful:
+    //         return "Powerful";
+    //     case Preset::Quiet:
+    //         return "Quiet";
+    //     default:
+    //         return "Unknown";
+    //     }
+    // }
 };
 
 // // Example usage

@@ -39,6 +39,7 @@ const int ACSerial_RX = 16;
 const int ACSerial_TX = 17;
 
 void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header);
+void send_command(CommandType type, uint8_t header);
 void write_array(const std::vector<uint8_t> &packet);
 void send_packet(const std::vector<uint8_t> &packet, CommandType type);
 void handle_poll();
