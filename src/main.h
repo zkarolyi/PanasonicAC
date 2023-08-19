@@ -3,10 +3,11 @@
 // MQTT
 const char *mqttBroker = "192.168.1.120";
 const int mqttPort = 1883;
-const char *clientId = "PanasonicAC"; // Add num to it
+const char *clientId = "PanasonicAC"; // 
 const char *mqttUsername = "openhabian";
 const char *mqttPassword = "openhabian";
-String acTopicSend = "PanasonicAC/out/"; // Add num to it
+String acTopicSend = "PanasonicAC/out/"; 
+String acTopicLog = "PanasonicAC/log/"; 
 String acTopicSet = "PanasonicAC/set/#";
 String acTopicSetTemperature = "PanasonicAC/set/temperature/";
 String acTopicSetMode = "PanasonicAC/set/mode/";
@@ -17,11 +18,12 @@ WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 void sendMQTTMessage(String payload);
+void sendMQTTLog(String payload);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 
 // AC Serial
 static const uint8_t READ_TIMEOUT = 20; // The maximum time to wait before considering a packet complete
-static const int POLL_INTERVAL = 30000; // The interval at which to poll the AC
+static const int POLL_INTERVAL = 10000; // The interval at which to poll the AC
 static const std::vector<uint8_t> CMD_POLL = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t CTRL_HEADER = 0xF0; // The header for control frames
 static const uint8_t POLL_HEADER = 0x70; // The header for the poll command
@@ -72,7 +74,7 @@ void createAP();
 // Timer
 const int ledPin = 2;             // beépített LED lába
 unsigned long previousMillis = 0; // változó az időzítéshez
-const long interval = 10000;      // az időköz, amelyenként villog a LED
+const long interval = 3000;      // az időköz, amelyenként villog a LED
 const unsigned long Serial_Baud = 115200;
 
 void timer();

@@ -8,14 +8,14 @@
 #include "main.h"
 
 // MQTT
-void sendMQTTMessage(String payload)
+void sendMQTTMessage(String payload, bool isLog)
 {
   Serial.println(payload);
 
   String mqttPayload = payload;
 
   Serial.print("Sending (");
-  Serial.print(acTopicSend);
+  Serial.print(isLog ? acTopicLog : acTopicSend);
   Serial.print("): ");
   Serial.println(mqttPayload);
 
@@ -32,7 +32,7 @@ void sendMQTTMessage(String payload)
       Serial.println(" retrying later");
     }
   }
-  if (mqttClient.publish(acTopicSend.c_str(), mqttPayload.c_str()))
+  if (mqttClient.publish(isLog ? acTopicLog.c_str() : acTopicSend.c_str(), mqttPayload.c_str()))
   {
     Serial.println("Message published successfully.");
   }
@@ -41,6 +41,16 @@ void sendMQTTMessage(String payload)
     Serial.print("Error publishing message. Error code: ");
     Serial.println(mqttClient.state());
   }
+}
+
+void sendMQTTMessage(String payload)
+{
+  sendMQTTMessage(payload, false);
+}
+
+void sendMQTTLog(String payload)
+{
+  sendMQTTMessage(payload, true);
 }
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)
@@ -58,34 +68,34 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     topicStr += (char)topic[i];
   }
 
-  sendMQTTMessage("Get something...");
+  sendMQTTLog("Get something...");
   if (topicStr == acTopicSetTemperature)
   {
-    sendMQTTMessage("Get Temp: " + message);
+    sendMQTTLog("Get Temp: " + message);
     ac.setTargetTemperature(message.toInt());
     send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetMode)
   {
-    sendMQTTMessage("Get Mode: " + message);
+    sendMQTTLog("Get Mode: " + message);
     ac.setMode(message.c_str());
     send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetFanSpeed)
   {
-    sendMQTTMessage("Get FanSpeed: " + message);
+    sendMQTTLog("Get FanSpeed: " + message);
     ac.setFanSpeed(message.c_str());
     send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetSwing)
   {
-    sendMQTTMessage("Get Swing: " + message);
+    sendMQTTLog("Get Swing: " + message);
     ac.setSwingMode(message.c_str());
     send_command(CommandType::Normal, CTRL_HEADER);
   }
   if (topicStr == acTopicSetPreset)
   {
-    sendMQTTMessage("Get Preset: " + message);
+    sendMQTTLog("Get Preset: " + message);
     ac.setPreset(message.c_str());
     send_command(CommandType::Normal, CTRL_HEADER);
   }
@@ -101,7 +111,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 void send_command(CommandType type, uint8_t header = CTRL_HEADER)
 {
   std::vector<uint8_t> dataVect = ac.getData();
-  sendMQTTMessage("Command: " + toHex(dataVect));
+  sendMQTTLog("Command: " + toHex(dataVect));
   send_command(dataVect, type, header);
 }
 
@@ -118,7 +128,7 @@ void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header
 
   command.push_back(checksum);
 
-  sendMQTTMessage("Command full: " + toHex(command));
+  sendMQTTLog("Command full: " + toHex(command));
 
   send_packet(command, type); // Actually send the constructed packet
 }
@@ -152,7 +162,7 @@ void handle_poll()
   if (millis() - last_packet_sent > POLL_INTERVAL)
   {
     Serial.println("Polling AC");
-    sendMQTTMessage("Polling AC");
+    sendMQTTLog("Polling AC");
     send_command(CMD_POLL, CommandType::Normal, POLL_HEADER);
   }
 }
@@ -195,7 +205,7 @@ void onSerialData()
 {
   if (Serial2.available())
   {
-    // sendMQTTMessage("Receiving...");
+    sendMQTTLog("Receiving...");
     String data = Serial2.readString();
     if (data.length() > 0)
     {
@@ -206,11 +216,12 @@ void onSerialData()
       if (String msg = verify_packet(data))
       {
         ac.loadFromPacket(data);
-        sendMQTTMessage(dataHex);
+        sendMQTTLog(dataHex);
+        sendMQTTMessage(ac.toJsonStringStructured());
       }
       else
       {
-        sendMQTTMessage(msg);
+        sendMQTTLog("Invalid: " + msg);
       }
     }
   }
@@ -391,7 +402,7 @@ void timer()
 
 void flashLed()
 {
-  sendMQTTMessage("Ping");
+  sendMQTTLog("Ping");
   digitalWrite(ledPin, !digitalRead(ledPin)); // LED állapotának megfordítása
 }
 
