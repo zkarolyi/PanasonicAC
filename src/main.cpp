@@ -19,27 +19,17 @@ void sendMQTTMessage(String payload, bool isLog)
   Serial.print("): ");
   Serial.println(mqttPayload);
 
-  if (!mqttClient.connected())
+  if (mqttClient.connected())
   {
-    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
+    if (mqttClient.publish(isLog ? acTopicLog.c_str() : acTopicSend.c_str(), mqttPayload.c_str()))
     {
-      Serial.println("Connected to MQTT broker");
+      Serial.println("Message published successfully.");
     }
     else
     {
-      Serial.print("Failed to connect to MQTT broker, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" retrying later");
+      Serial.print("Error publishing message. Error code: ");
+      Serial.println(mqttClient.state());
     }
-  }
-  if (mqttClient.publish(isLog ? acTopicLog.c_str() : acTopicSend.c_str(), mqttPayload.c_str()))
-  {
-    Serial.println("Message published successfully.");
-  }
-  else
-  {
-    Serial.print("Error publishing message. Error code: ");
-    Serial.println(mqttClient.state());
   }
 }
 
@@ -105,6 +95,24 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   Serial.print(") -> ");
   String strPayload = String((char *)payload).substring(0, length);
   Serial.println(strPayload);
+}
+
+void mqttReconnect()
+{
+  int tryMqtt = 0;
+  while (!mqttClient.connected() && tryMqtt++ < 20)
+  {
+    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
+    {
+      mqttClient.subscribe(acTopicSet.c_str());
+    }
+    else
+    {
+      esp_task_wdt_reset();
+      Serial.println("Waitinf for MQTT - " + tryMqtt);
+      delay(1000);
+    }
+  }
 }
 
 // AC Serial
@@ -451,20 +459,6 @@ void setup()
   Serial.println("Starting MQTT");
   mqttClient.setServer(mqttBroker, mqttPort);
   mqttClient.setCallback(mqttCallback);
-  int tryMqtt = 0;
-  while (!mqttClient.connected() && tryMqtt++ < 5)
-  {
-    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
-    {
-      mqttClient.subscribe(acTopicSet.c_str());
-    }
-    else
-    {
-      Serial.println("Waitinf for MQTT - " + tryMqtt);
-      delay(1000);
-    }
-  }
-  Serial.println("MQTT connected.");
 
   // OTA
   // Port defaults to 3232
@@ -514,7 +508,11 @@ void loop()
   server.handleClient(); // A klienst kezelő függvény hívása
   // Serial.println("Loop...");
   onSerialData();
+  if(!mqttClient.connected()){
+    mqttReconnect();
+  }
   mqttClient.loop();
+
   ArduinoOTA.handle();
   timer();
 }
