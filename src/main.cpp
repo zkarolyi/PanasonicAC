@@ -118,9 +118,12 @@ void mqttReconnect()
 // AC Serial
 void send_command(CommandType type, uint8_t header = CTRL_HEADER)
 {
-  std::vector<uint8_t> dataVect = ac.getData();
-  sendMQTTLog("Command: " + toHex(dataVect));
-  send_command(dataVect, type, header);
+  if (ac.ACReady())
+  {
+    std::vector<uint8_t> dataVect = ac.getData();
+    sendMQTTLog("Command: " + toHex(dataVect));
+    send_command(dataVect, type, header);
+  }
 }
 
 void send_command(std::vector<uint8_t> command, CommandType type, uint8_t header = CTRL_HEADER)
@@ -508,7 +511,8 @@ void loop()
   server.handleClient(); // A klienst kezelő függvény hívása
   // Serial.println("Loop...");
   onSerialData();
-  if(!mqttClient.connected()){
+  if (!mqttClient.connected())
+  {
     mqttReconnect();
   }
   mqttClient.loop();

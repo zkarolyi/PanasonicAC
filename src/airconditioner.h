@@ -72,19 +72,19 @@ public:
     {
         data_ = std::vector<uint8_t>(packet.begin() + 2, packet.begin() + 12);
 
+        mode_ = (Mode)packet[2];
+        fanSpeed_ = (FanSpeed)packet[5];
+        swingMode_ = (SwingMode)packet[6];
+        preset_ = (Preset)packet[7];
+
+        targetTemperature_ = packet[3] * 0.5;
+        if (packet[18] != 0x80)
+            internalTemperature_ = packet[18];
+        if (packet[19] != 0x80)
+            externalTemperature_ = packet[19];
+
         if (acState_ != ACState::Ready)
         {
-            mode_ = (Mode)packet[2];
-            fanSpeed_ = (FanSpeed)packet[5];
-            swingMode_ = (SwingMode)packet[6];
-            preset_ = (Preset)packet[7];
-
-            targetTemperature_ = packet[3] * 0.5;
-            if (packet[18] != 0x80)
-                internalTemperature_ = packet[18];
-            if (packet[19] != 0x80)
-                externalTemperature_ = packet[19];
-
             acState_ = ACState::Ready;
         }
     }
@@ -94,7 +94,8 @@ public:
         targetTemperature_ = temperature;
     }
 
-    void setMode(const char * str){
+    void setMode(const char *str)
+    {
         mode_ = stringToMode(str, Mode::Off);
     }
 
@@ -103,7 +104,7 @@ public:
         mode_ = mode;
     }
 
-    void setFanSpeed(const char * str)
+    void setFanSpeed(const char *str)
     {
         fanSpeed_ = stringToFanSpeed(str, FanSpeed::Auto);
     }
@@ -113,7 +114,7 @@ public:
         fanSpeed_ = speed;
     }
 
-    void setSwingMode(const char * str)
+    void setSwingMode(const char *str)
     {
         swingMode_ = stringToSwingMode(str, SwingMode::Auto);
     }
@@ -123,7 +124,7 @@ public:
         swingMode_ = mode;
     }
 
-    void setPreset(const char * str)
+    void setPreset(const char *str)
     {
         preset_ = stringToPreset(str, Preset::Normal);
     }
@@ -172,6 +173,11 @@ public:
     ACState getAcState() const
     {
         return acState_;
+    }
+
+    boolean ACReady() const
+    {
+        return acState_ == ACState::Ready;
     }
 
     std::vector<uint8_t> getData() const
