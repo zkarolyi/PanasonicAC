@@ -1,19 +1,32 @@
 #include "airconditioner.h"
 
+#define VERSION "C"
+
 // MQTT
+#define BASE_MQTT_TOPIC "PanasonicAC_" VERSION
+
 const char *mqttBroker = "192.168.1.120";
 const int mqttPort = 1883;
-const char *clientId = "PanasonicAC"; // 
+//const char *clientId = "PanasonicAC";
+const char *clientId = "PanasonicAC_" VERSION;
 const char *mqttUsername = "openhabian";
 const char *mqttPassword = "openhabian";
-String acTopicSend = "PanasonicAC/out/"; 
-String acTopicLog = "PanasonicAC/log/"; 
-String acTopicSet = "PanasonicAC/set/#";
-String acTopicSetTemperature = "PanasonicAC/set/temperature/";
-String acTopicSetMode = "PanasonicAC/set/mode/";
-String acTopicSetFanSpeed = "PanasonicAC/set/fanspeed/";
-String acTopicSetSwing = "PanasonicAC/set/swing/";
-String acTopicSetPreset = "PanasonicAC/set/preset/";
+// String acTopicSend = "PanasonicAC/out/"; 
+// String acTopicLog = "PanasonicAC/log/"; 
+// String acTopicSet = "PanasonicAC/set/#";
+// String acTopicSetTemperature = "PanasonicAC/set/temperature/";
+// String acTopicSetMode = "PanasonicAC/set/mode/";
+// String acTopicSetFanSpeed = "PanasonicAC/set/fanspeed/";
+// String acTopicSetSwing = "PanasonicAC/set/swing/";
+// String acTopicSetPreset = "PanasonicAC/set/preset/";
+String acTopicSend = BASE_MQTT_TOPIC "/out/"; 
+String acTopicLog = BASE_MQTT_TOPIC "/log/"; 
+String acTopicSet = BASE_MQTT_TOPIC "/set/#";
+String acTopicSetTemperature = BASE_MQTT_TOPIC "/set/temperature/";
+String acTopicSetMode = BASE_MQTT_TOPIC "/set/mode/";
+String acTopicSetFanSpeed = BASE_MQTT_TOPIC "/set/fanspeed/";
+String acTopicSetSwing = BASE_MQTT_TOPIC "/set/swing/";
+String acTopicSetPreset = BASE_MQTT_TOPIC "/set/preset/";
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
@@ -84,4 +97,5 @@ void flashLed();
 const int wdtTimeOut = 60;
 
 // OTA
-const char *OTA_HOSTNAME = "PanasonicAC"; // Add num to it
+//const char *OTA_HOSTNAME = "PanasonicAC"; // Add num to it
+const char *OTA_HOSTNAME = "PanasonicAC_" VERSION;
