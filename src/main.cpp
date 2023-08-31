@@ -359,6 +359,7 @@ void connectToRouter(String ssid, String password)
   Serial.print(password);
   Serial.println("--");
   WiFi.disconnect();
+  WiFi.setHostname(HOSTNAME);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str()); // A WiFi hálózathoz való kapcsolódás
   int countDown = 10;
@@ -468,7 +469,7 @@ void setup()
   // ArduinoOTA.setPort(3232);
   //
   // Hostname defaults to esp32-[MAC]
-  ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.setHostname(HOSTNAME);
   //
   // No authentication by default
   // ArduinoOTA.setPassword("admin");

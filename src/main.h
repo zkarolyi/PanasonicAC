@@ -1,6 +1,6 @@
 #include "airconditioner.h"
 
-#define VERSION "B" // A: livingRoom, B: Mid floor, C: Top floor
+#define VERSION "C" // A: livingRoom, B: Mid floor, C: Top floor
 
 // MQTT
 #define BASE_MQTT_TOPIC "PanasonicAC_" VERSION
@@ -69,6 +69,7 @@ const char *WIFI_AP_SSID = "ESP32-AP";
 const char *WIFI_AP_PWD = "almaalma";
 unsigned long apActiveMillis = 0; // mennyi ideje van AP módban a WIFI. 0: nem AP módban van
 const long apInterval = 600000;   // AP mód timeout
+const char *HOSTNAME = "PanasonicAC_" VERSION;
 
 void saveWiFiCredentials(const char *ssid, const char *password);
 boolean readWiFiCredentials(char *ssid, char *password);
@@ -86,6 +87,3 @@ void flashLed();
 
 // WDT
 const int wdtTimeOut = 60;
-
-// OTA
-const char *OTA_HOSTNAME = "PanasonicAC_" VERSION;
