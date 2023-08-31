@@ -1,6 +1,6 @@
 #include "airconditioner.h"
 
-#define VERSION "C" // A: livingRoom, B: Mid floor, C: Top floor
+#define VERSION "B" // A: livingRoom, B: Mid floor, C: Top floor
 
 // MQTT
 #define BASE_MQTT_TOPIC "PanasonicAC_" VERSION

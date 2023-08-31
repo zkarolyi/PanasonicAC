@@ -8,11 +8,11 @@ public:
     // Modes for the Air Conditioner
     enum class Mode
     {
-        HeatCool = 0x04,
+        Auto = 0x04,
         Cool = 0x34,
         Heat = 0x44,
         Dry = 0x24,
-        FanOnly = 0x64,
+        // FanOnly = 0x64,
         Off = 0x30
     };
 
@@ -269,11 +269,11 @@ private:
     }
 
     std::unordered_map<std::string, Mode> modeMap = {
-        {"Heat/Cool", Mode::HeatCool},
+        {"Auto", Mode::Auto},
         {"Cool", Mode::Cool},
         {"Heat", Mode::Heat},
         {"Dry", Mode::Dry},
-        {"FanOnly", Mode::FanOnly},
+        // {"FanOnly", Mode::FanOnly},
         {"Off", Mode::Off}};
 
     std::unordered_map<std::string, FanSpeed> fanSpeedMap = {
