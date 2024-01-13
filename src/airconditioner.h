@@ -81,7 +81,8 @@ public:
         if (packet[18] != 0x80)
             internalTemperature_ = packet[18];
         if (packet[19] != 0x80)
-            externalTemperature_ = packet[19];
+            // externalTemperature_ = packet[19];
+            externalTemperature_ = static_cast<float>(static_cast<int8_t>(packet[19]));
 
         if (acState_ != ACState::Ready)
         {
