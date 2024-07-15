@@ -81,6 +81,7 @@ const int ledPin = 2;             // beépített LED lába
 unsigned long previousMillis = 0; // változó az időzítéshez
 const long interval = 3000;      // az időköz, amelyenként villog a LED
 const unsigned long Serial_Baud = 115200;
+const bool disableLed = true; // disable the LED blinking
 
 void timer();
 void flashLed();

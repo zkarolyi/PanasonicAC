@@ -415,6 +415,7 @@ void timer()
 void flashLed()
 {
   sendMQTTLog("Ping");
+  if(disableLed) return;
   digitalWrite(ledPin, !digitalRead(ledPin)); // LED állapotának megfordítása
 }
 
