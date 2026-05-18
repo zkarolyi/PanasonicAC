@@ -88,3 +88,13 @@ void flashLed();
 
 // WDT
 const int wdtTimeOut = 60;
+
+// Functional MQTT watchdog
+// Tracks last time a message was successfully published or received via MQTT.
+// If WiFi is connected and this threshold is exceeded the device restarts.
+const unsigned long mqttWatchdogTimeout = 300000UL; // 5 min of MQTT silence → reboot
+unsigned long mqttLastActivity = 0;                 // millis() of last successful MQTT event
+
+// Non-blocking MQTT reconnect timing
+const unsigned long mqttReconnectInterval = 5000UL; // attempt reconnect at most every 5 s
+unsigned long mqttLastReconnectAttempt = 0;
