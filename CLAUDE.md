@@ -16,6 +16,8 @@ PlatformIO CLI (`pio`), single env `esp32doit-devkit-v1`:
 
 There are no tests (`test/` only holds the PlatformIO template README) and no linter.
 
+`tools/AcMonitor` is a .NET 10 console app that records the units' MQTT state (and optionally debug/raw-packet logs) to daily CSV/JSONL files: `dotnet run --project tools/AcMonitor -- --log` (see its README).
+
 ## Architecture
 
 All logic is in `src/main.cpp`; `src/main.h` holds configuration constants, globals and forward declarations (it is included only once, so defining globals there is intentional). `src/airconditioner.h` is a header-only `AirConditioner` state class.
