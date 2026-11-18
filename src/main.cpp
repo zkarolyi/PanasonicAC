@@ -241,10 +241,11 @@ void onSerialData()
       String dataHex = toHex(data, data.length());
       Serial.println(dataHex);
 
-      if (String msg = verify_packet(data))
+      // verify_packet returns "" on success; non-empty means an error description.
+      // Note: Arduino String's bool conversion is true even when empty, so check length().
+      String msg = verify_packet(data);
+      if (msg.length() > 0)
       {
-        // verify_packet returns "" on success; non-empty means an error description.
-        // A non-empty string is truthy → this branch fires on ERROR → log the error.
         sendMQTTLog("Invalid: " + msg);
       }
       else
@@ -424,7 +425,6 @@ void timer()
   // is stuck and reboot.  This covers cases where the hardware WDT would
   // never fire (e.g. the main loop keeps running but MQTT is dead).
   if (WiFi.status() == WL_CONNECTED &&
-      mqttLastActivity > 0 &&
       currentMillis - mqttLastActivity > mqttWatchdogTimeout)
   {
     Serial.println("MQTT watchdog timeout! No activity for 5 min. Restarting...");
@@ -499,6 +499,7 @@ void setup()
   mqttClient.setCallback(mqttCallback);
   mqttClient.setKeepAlive(15);    // broker pings every 15 s; detects dead connections faster
   mqttClient.setSocketTimeout(5); // TCP socket operations time out after 5 s (not 15 s default)
+  mqttLastActivity = millis();    // watchdog starts counting from boot, not first successful event
 
   // OTA
   // Port defaults to 3232
