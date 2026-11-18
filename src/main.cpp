@@ -23,6 +23,7 @@ void sendMQTTMessage(String payload, bool isLog)
   {
     if (mqttClient.publish(isLog ? acTopicLog.c_str() : acTopicSend.c_str(), mqttPayload.c_str()))
     {
+      mqttLastActivity = millis(); // heartbeat: successful publish
       Serial.println("Message published successfully.");
     }
     else
@@ -45,6 +46,8 @@ void sendMQTTLog(String payload)
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
+  mqttLastActivity = millis(); // heartbeat: message received
+
   // handle incoming messages here
   String message = "";
   for (int i = 0; i < length; i++)
@@ -99,19 +102,33 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 
 void mqttReconnect()
 {
-  int tryMqtt = 0;
-  while (!mqttClient.connected() && tryMqtt++ < 20)
+  // Only attempt a reconnect if the back-off interval has elapsed.
+  // This keeps the main loop free instead of blocking for up to 20 s.
+  unsigned long now = millis();
+  if (now - mqttLastReconnectAttempt < mqttReconnectInterval)
+    return;
+
+  mqttLastReconnectAttempt = now;
+
+  if (WiFi.status() != WL_CONNECTED)
   {
-    if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
-    {
-      mqttClient.subscribe(acTopicSet.c_str());
-    }
-    else
-    {
-      esp_task_wdt_reset();
-      Serial.println("Waitinf for MQTT - " + tryMqtt);
-      delay(1000);
-    }
+    Serial.println("WiFi not connected – skipping MQTT reconnect");
+    return;
+  }
+
+  Serial.println("Attempting MQTT reconnect...");
+  esp_task_wdt_reset();
+
+  if (mqttClient.connect(clientId, mqttUsername, mqttPassword))
+  {
+    mqttClient.subscribe(acTopicSet.c_str());
+    mqttLastActivity = millis(); // fresh connection counts as activity
+    Serial.println("MQTT reconnected");
+  }
+  else
+  {
+    Serial.print("MQTT reconnect failed, rc=");
+    Serial.println(mqttClient.state());
   }
 }
 
@@ -224,15 +241,19 @@ void onSerialData()
       String dataHex = toHex(data, data.length());
       Serial.println(dataHex);
 
-      if (String msg = verify_packet(data))
+      // verify_packet returns "" on success; non-empty means an error description.
+      // Note: Arduino String's bool conversion is true even when empty, so check length().
+      String msg = verify_packet(data);
+      if (msg.length() > 0)
       {
-        ac.loadFromPacket(data);
-        sendMQTTLog(dataHex);
-        sendMQTTMessage(ac.toJsonStringStructured());
+        sendMQTTLog("Invalid: " + msg);
       }
       else
       {
-        sendMQTTLog("Invalid: " + msg);
+        // Empty string (success) → process the valid packet.
+        ac.loadFromPacket(data);
+        sendMQTTLog(dataHex);
+        sendMQTTMessage(ac.toJsonStringStructured());
       }
     }
   }
@@ -396,13 +417,25 @@ void createAP()
 // Timer
 void timer()
 {
-  unsigned long currentMillis = millis(); // aktuális idő lekérdezése
+  unsigned long currentMillis = millis();
+
+  // ── Functional MQTT watchdog ─────────────────────────────────────────────
+  // If WiFi is up and we have had at least one successful MQTT event but
+  // nothing has happened for mqttWatchdogTimeout ms, assume the MQTT stack
+  // is stuck and reboot.  This covers cases where the hardware WDT would
+  // never fire (e.g. the main loop keeps running but MQTT is dead).
+  if (WiFi.status() == WL_CONNECTED &&
+      currentMillis - mqttLastActivity > mqttWatchdogTimeout)
+  {
+    Serial.println("MQTT watchdog timeout! No activity for 5 min. Restarting...");
+    ESP.restart();
+  }
 
   if (currentMillis - previousMillis >= interval)
-  {                                 // ha eltelt a megadott idő
-    previousMillis = currentMillis; // frissítjük az előző időt
+  {
+    previousMillis = currentMillis;
     flashLed();
-    esp_task_wdt_reset();
+    esp_task_wdt_reset(); // feed hardware WDT only when the loop is healthy
     handle_poll();
   }
   if (apActiveMillis > 0 && currentMillis - apActiveMillis >= apInterval)
@@ -464,6 +497,9 @@ void setup()
   Serial.println("Starting MQTT");
   mqttClient.setServer(mqttBroker, mqttPort);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setKeepAlive(15);    // broker pings every 15 s; detects dead connections faster
+  mqttClient.setSocketTimeout(5); // TCP socket operations time out after 5 s (not 15 s default)
+  mqttLastActivity = millis();    // watchdog starts counting from boot, not first successful event
 
   // OTA
   // Port defaults to 3232
@@ -510,14 +546,22 @@ void setup()
 // LOOP
 void loop()
 {
-  server.handleClient(); // A klienst kezelő függvény hívása
-  // Serial.println("Loop...");
+  server.handleClient();
   onSerialData();
-  if (!mqttClient.connected())
+
+  // Only attempt MQTT operations when WiFi is up.
+  // WiFi auto-reconnects on its own; we just need to wait for it.
+  if (WiFi.status() == WL_CONNECTED)
   {
-    mqttReconnect();
+    if (!mqttClient.connected())
+    {
+      mqttReconnect(); // non-blocking: returns immediately if back-off has not elapsed
+    }
+    else
+    {
+      mqttClient.loop();
+    }
   }
-  mqttClient.loop();
 
   ArduinoOTA.handle();
   timer();
