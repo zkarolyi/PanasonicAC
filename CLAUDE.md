@@ -16,7 +16,7 @@ PlatformIO CLI (`pio`), single env `esp32doit-devkit-v1`:
 
 There are no tests (`test/` only holds the PlatformIO template README) and no linter.
 
-`tools/AcMonitor` is a .NET 10 console app that records the units' MQTT state (and optionally debug/raw-packet logs) to daily CSV/JSONL files: `dotnet run --project tools/AcMonitor -- --log` (see its README).
+`tools/AcMonitor` is a .NET 10 console app that only listens to the units' MQTT traffic. It writes daily per-unit files: state CSV, debug log JSONL (`--log`), and raw serial frames as hex text lines (`--raw`, rebuilt from the firmware's hex log messages). Run it with `dotnet run --project tools/AcMonitor -- --log --raw`; see its README for details. Use `--raw` captures to check protocol changes against real units.
 
 ## Architecture
 
@@ -28,6 +28,7 @@ All logic is in `src/main.cpp`; `src/main.h` holds configuration constants, glob
 - Responses are read with `Serial2.readString()` using the UART read timeout (`READ_TIMEOUT`) as the frame delimiter, validated by `verify_packet()`, then parsed by `AirConditioner::loadFromPacket()` (fixed byte offsets: mode=2, target temp×2=3, fan=5, swing=6, preset=7, inside temp=18, outside temp=19 signed; `0x80` = invalid reading).
 - Commands are built by `AirConditioner::getData()`: it copies the last received 10-byte payload (`data_`) and overwrites mode/temp/fan/swing/preset. Therefore **no command is sent until at least one valid response has been received** (`ACReady()`).
 - Enum values in `AirConditioner` are the raw protocol bytes; string maps there define the accepted MQTT payload values (e.g. mode `Auto|Cool|Heat|Dry|Off`, fan `Auto|1..5`, swing `Auto|Up|UpCenter|Center|DownCenter|Down`, preset `Normal|Powerful|Quiet`).
+- Known decoding gaps, not yet fixed: mode and power share byte 2 (high nibble = mode, low nibble = power), so `Off = 0x30` is really "Cool, power off". The low nibble of the swing byte is horizontal swing. The preset byte also carries the nanoe-X and Econavi bits. See `docs/cn-cnt-protocol.md` §5 before changing `AirConditioner`.
 
 **MQTT** (PubSubClient, broker/credentials hardcoded in `main.h`):
 - Subscribes `PanasonicAC_<V>/set/#`; handlers for `set/temperature/`, `set/mode/`, `set/fanspeed/`, `set/swing/`, `set/preset/` (note the trailing slash — topics are compared by exact string). Each sets AC state and immediately sends a control frame.

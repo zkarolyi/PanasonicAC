@@ -124,9 +124,32 @@ S1 and S2 disagree on payload bytes 6, 7 and 9. S1 copies the whole response, wh
 7. **Timing:** the firmware polls every 10 s, where S1 polls every 5 s. It sends a command for every MQTT message, with no 250 ms spacing or merging.
 8. **Features not yet supported:** fan only, mild dry, eco, nanoe-X, Econavi, horizontal swing, defrost status, humidity, power and current, and operating state.
 
+## 6. Observations from our own units
+
+These frames were captured on 2026-11-18 with `tools/AcMonitor --raw`. All of them passed the checksum.
+
+```
+B  Heat on, 21 °C, quiet, running:
+70 20 44 2A 80 A0 30 04 00 40 00 00 4C 2C 00 00 00 00 17 0A FF 18 0A FF 80 80 FF 80 8B 01 0A 80 85 65 36
+A  Cool, power off (mode byte 0x30):
+70 20 30 28 80 A0 F0 04 00 40 00 00 00 28 00 00 00 00 15 80 FF 15 80 FF 80 80 FF 80 01 00 00 C0 00 00 34
+C  Cool, power off, no outdoor reading:
+70 20 30 2A 80 A0 F0 00 00 40 00 00 00 2A 00 00 00 00 12 80 FF 12 80 FF 80 80 FF 80 01 00 00 80 85 65 90
+```
+
+- All responses are 35 bytes with `byte[1] = 0x20`. We have not seen the `0x22` variant.
+- **Byte 12:** unit B reads `0x4C` while heating, which matches S2's "heat, compressor running". The two powered-off units read `0x00`.
+- **Byte 13** is the target plus 2 raw units on unit B, which is running. That fits S2's offset of about +2 to +6. On the powered-off units it equals the target.
+- **Bytes 18–19 and 21–22:** unit B reads 23 °C / 10 °C at 18–19 and 24 °C / 10 °C at 21–22. Units A and C report `0x80` (no reading) for outdoor temperature at 19 and 22 while powered off. The firmware keeps the last good value, so the outdoor temperature it publishes for those units is stale.
+- **Bytes 28–30** change from poll to poll while B is running: `8B 01 0A`, `14 01 08`, `2E 01 09`. With S2's formula that is about 300–435 W and 1.6–2.0 A. The powered-off units read `01 00 00`.
+- **Bytes 31–33** cycle through three blocks on every unit: `80 85 65`, `C0 00 00` and `C1 36 14`. This confirms S2's description of them as multiplexed identifiers.
+- **Byte 9** is `0x40` on every unit, matching S2's observation.
+- **Missed responses:** every unit sometimes fails to answer a poll. The firmware frames responses using only a 20 ms read timeout, and it publishes nothing for frames it rejects. It is not yet clear whether the AC stays silent or the firmware drops the frame.
+
 ## Open questions
 
-- Byte 12 beyond the observed heat and cool states, bytes 16–17 and bytes 31–33.
+- Byte 12 beyond the observed heat and cool states, bytes 16–17, and the meaning of the three blocks in bytes 31–33.
+- Why some polls get no visible response (see §6).
 - The power formula, since S1 and S2 differ.
 - Error codes.
 - Whether the AC replies to a control frame.
