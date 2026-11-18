@@ -22,7 +22,7 @@ There are no tests (`test/` only holds the PlatformIO template README) and no li
 
 All logic is in `src/main.cpp`; `src/main.h` holds configuration constants, globals and forward declarations (it is included only once, so defining globals there is intentional). `src/airconditioner.h` is a header-only `AirConditioner` state class.
 
-**AC serial protocol** (Serial2, 9600 8E1, RX=16/TX=17, 5V TTL — see `protocol_description_query.xlsx`):
+**AC serial protocol** (Serial2, 9600 8E1, RX=16/TX=17, 5V TTL — see `protocol_description_query.xlsx` and `docs/cn-cnt-protocol.md` for the full byte map, known gaps and sources):
 - Frame = `header, length, payload..., checksum`, where checksum makes the byte sum of the whole frame 0 mod 256. Headers: `0xF0` control, `0x70` poll.
 - `handle_poll()` sends a 10-byte zero poll frame when nothing has been sent for `POLL_INTERVAL` (10 s).
 - Responses are read with `Serial2.readString()` using the UART read timeout (`READ_TIMEOUT`) as the frame delimiter, validated by `verify_packet()`, then parsed by `AirConditioner::loadFromPacket()` (fixed byte offsets: mode=2, target temp×2=3, fan=5, swing=6, preset=7, inside temp=18, outside temp=19 signed; `0x80` = invalid reading).
