@@ -2,7 +2,6 @@
 // AC state (from <unit>/out/) to daily CSV files, and optionally the debug log
 // (<unit>/log/, incl. raw hex packets) to daily JSONL files.
 
-using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -58,7 +57,7 @@ client.ApplicationMessageReceivedAsync += e =>
             if (opt.Raw && RawFrames.TryParse(payload, out var dir, out var frame))
             {
                 writer.WriteRaw(unit, now, dir, frame);
-                if (opt.Verbose) Console.WriteLine($"{now:HH:mm:ss} {unit} raw {dir}: {Convert.ToHexString(frame)}");
+                if (opt.Verbose) Console.WriteLine($"{now:HH:mm:ss} {unit} raw {dir}: {RawFrames.ToHex(frame)}");
             }
             if (!opt.Log || (payload == "Ping" && !opt.Ping)) return Task.CompletedTask;
             writer.WriteLog(unit, now, payload);
@@ -160,22 +159,14 @@ sealed class DataWriter(string outDir)
     }
 
     /// <summary>
-    /// Appends one binary record (all integers little-endian):
-    /// int64 timestamp (Unix ms, UTC) | uint8 direction (0 = from AC, 1 = to AC) | uint16 frame length | frame bytes.
+    /// Appends one frame per line: "&lt;local ISO timestamp&gt; &lt;RX|TX&gt; &lt;hex bytes, space separated&gt;",
+    /// e.g. "2026-11-18T22:24:15.812+01:00 RX 70 20 30 2A ...". RX = from AC, TX = to AC.
     /// </summary>
     public void WriteRaw(string unit, DateTimeOffset ts, RawFrames.Direction dir, byte[] frame)
     {
-        var path = FilePath(unit, "raw", "bin", ts);
-        Span<byte> head = stackalloc byte[11];
-        BinaryPrimitives.WriteInt64LittleEndian(head, ts.ToUnixTimeMilliseconds());
-        head[8] = (byte)dir;
-        BinaryPrimitives.WriteUInt16LittleEndian(head[9..], (ushort)frame.Length);
-        lock (_lock)
-        {
-            using var fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
-            fs.Write(head);
-            fs.Write(frame);
-        }
+        var line = $"{ts.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture)} " +
+                   $"{(dir == RawFrames.Direction.FromAc ? "RX" : "TX")} {RawFrames.ToHex(frame)}";
+        Append(unit, "raw", "txt", ts, line, header: null);
     }
 
     private string FilePath(string unit, string kind, string ext, DateTimeOffset ts)
@@ -210,6 +201,8 @@ sealed class DataWriter(string outDir)
 static class RawFrames
 {
     public enum Direction : byte { FromAc = 0, ToAc = 1 }
+
+    public static string ToHex(byte[] frame) => string.Join(' ', frame.Select(b => b.ToString("X2")));
 
     private const string TxPrefix = "Command full: ";
 
@@ -299,7 +292,7 @@ sealed record Options(
               --units <list>      Units to record, comma separated (default A,B,C)
           -o, --out <dir>         Output directory (default ./ac-data)
               --log               Also record <unit>/log/ messages (incl. raw hex packets) to JSONL
-              --raw               Record AC serial frames (sent and received) as binary to raw_<date>.bin
+              --raw               Record AC serial frames (sent and received) as hex lines to raw_<date>.txt
               --ping              With --log, also record the 3 s "Ping" heartbeat messages
           -v, --verbose           Print log messages to the console
           -q, --quiet             Don't print state updates to the console
@@ -307,7 +300,6 @@ sealed record Options(
         Output (one file per unit per day, in <out>/<unit>/):
           state_<date>.csv   AC state
           log_<date>.jsonl   firmware log messages (--log)
-          raw_<date>.bin     records: int64 Unix ms | uint8 dir (0 from AC, 1 to AC) | uint16 len | frame (--raw)
-                             all integers little-endian
+          raw_<date>.txt     one frame per line: <timestamp> <RX|TX> <hex bytes> (--raw)
         """);
 }
