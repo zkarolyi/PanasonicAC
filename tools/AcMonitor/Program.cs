@@ -2,6 +2,7 @@
 // AC state (from <unit>/out/) to daily CSV files, and optionally the debug log
 // (<unit>/log/, incl. raw hex packets) to daily JSONL files.
 
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -30,7 +31,7 @@ var subscribeBuilder = factory.CreateSubscribeOptionsBuilder();
 foreach (var unit in opt.Units)
 {
     subscribeBuilder.WithTopicFilter($"PanasonicAC_{unit}/out/#");
-    if (opt.Log) subscribeBuilder.WithTopicFilter($"PanasonicAC_{unit}/log/#");
+    if (opt.Log || opt.Raw) subscribeBuilder.WithTopicFilter($"PanasonicAC_{unit}/log/#");
 }
 var subscribeOptions = subscribeBuilder.Build();
 
@@ -54,7 +55,12 @@ client.ApplicationMessageReceivedAsync += e =>
         }
         else if (kind == "log")
         {
-            if (payload == "Ping" && !opt.Ping) return Task.CompletedTask;
+            if (opt.Raw && RawFrames.TryParse(payload, out var dir, out var frame))
+            {
+                writer.WriteRaw(unit, now, dir, frame);
+                if (opt.Verbose) Console.WriteLine($"{now:HH:mm:ss} {unit} raw {dir}: {Convert.ToHexString(frame)}");
+            }
+            if (!opt.Log || (payload == "Ping" && !opt.Ping)) return Task.CompletedTask;
             writer.WriteLog(unit, now, payload);
             if (opt.Verbose) Console.WriteLine($"{now:HH:mm:ss} {unit} log: {payload}");
         }
@@ -77,7 +83,8 @@ using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
 Console.WriteLine($"Broker {opt.Broker}:{opt.Port}, units {string.Join(",", opt.Units)}, " +
-                  $"log topics {(opt.Log ? "on" : "off")}, output {Path.GetFullPath(opt.OutDir)}. Ctrl+C to stop.");
+                  $"log {(opt.Log ? "on" : "off")}, raw {(opt.Raw ? "on" : "off")}, " +
+                  $"output {Path.GetFullPath(opt.OutDir)}. Ctrl+C to stop.");
 
 // Connect / reconnect loop.
 using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
@@ -152,13 +159,37 @@ sealed class DataWriter(string outDir)
         Append(unit, "log", "jsonl", ts, line, header: null);
     }
 
-    private void Append(string unit, string kind, string ext, DateTimeOffset ts, string line, string? header)
+    /// <summary>
+    /// Appends one binary record (all integers little-endian):
+    /// int64 timestamp (Unix ms, UTC) | uint8 direction (0 = from AC, 1 = to AC) | uint16 frame length | frame bytes.
+    /// </summary>
+    public void WriteRaw(string unit, DateTimeOffset ts, RawFrames.Direction dir, byte[] frame)
     {
-        var dir = Path.Combine(outDir, unit);
-        var path = Path.Combine(dir, $"{kind}_{ts:yyyy-MM-dd}.{ext}");
+        var path = FilePath(unit, "raw", "bin", ts);
+        Span<byte> head = stackalloc byte[11];
+        BinaryPrimitives.WriteInt64LittleEndian(head, ts.ToUnixTimeMilliseconds());
+        head[8] = (byte)dir;
+        BinaryPrimitives.WriteUInt16LittleEndian(head[9..], (ushort)frame.Length);
         lock (_lock)
         {
-            Directory.CreateDirectory(dir);
+            using var fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+            fs.Write(head);
+            fs.Write(frame);
+        }
+    }
+
+    private string FilePath(string unit, string kind, string ext, DateTimeOffset ts)
+    {
+        var dir = Path.Combine(outDir, unit);
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, $"{kind}_{ts:yyyy-MM-dd}.{ext}");
+    }
+
+    private void Append(string unit, string kind, string ext, DateTimeOffset ts, string line, string? header)
+    {
+        var path = FilePath(unit, kind, ext, ts);
+        lock (_lock)
+        {
             var isNew = !File.Exists(path);
             using var w = new StreamWriter(path, append: true, new UTF8Encoding(false));
             if (isNew && header is not null) w.WriteLine(header);
@@ -170,9 +201,45 @@ sealed class DataWriter(string outDir)
         s.IndexOfAny([',', '"', '\n']) >= 0 ? $"\"{s.Replace("\"", "\"\"")}\"" : s;
 }
 
+/// <summary>
+/// Recovers AC serial frames from the firmware's MQTT log messages:
+///   "70 20 44 2A ..."           → frame received from the AC (space-separated hex)
+///   "Command full: 700A00...86" → frame sent to the AC (contiguous hex)
+/// Frames whose length byte doesn't match are ignored.
+/// </summary>
+static class RawFrames
+{
+    public enum Direction : byte { FromAc = 0, ToAc = 1 }
+
+    private const string TxPrefix = "Command full: ";
+
+    public static bool TryParse(string message, out Direction dir, out byte[] frame)
+    {
+        frame = [];
+        string hex;
+        if (message.StartsWith(TxPrefix, StringComparison.Ordinal))
+        {
+            dir = Direction.ToAc;
+            hex = message[TxPrefix.Length..].Trim();
+        }
+        else
+        {
+            dir = Direction.FromAc;
+            hex = message.Replace(" ", "");
+        }
+
+        if (hex.Length < 6 || hex.Length % 2 != 0) return false;
+        try { frame = Convert.FromHexString(hex); }
+        catch (FormatException) { return false; }
+
+        // header, length, payload[length], checksum
+        return frame.Length == frame[1] + 3;
+    }
+}
+
 sealed record Options(
     string Broker, int Port, string User, string Password, string[] Units,
-    string OutDir, bool Log, bool Ping, bool Verbose, bool Quiet)
+    string OutDir, bool Log, bool Raw, bool Ping, bool Verbose, bool Quiet)
 {
     public static Options? Parse(string[] args)
     {
@@ -183,7 +250,7 @@ sealed record Options(
         string password = Env("AC_MQTT_PASSWORD") ?? "openhabian";
         string units = "A,B,C";
         string outDir = "ac-data";
-        bool log = false, ping = false, verbose = false, quiet = false;
+        bool log = false, raw = false, ping = false, verbose = false, quiet = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -199,6 +266,7 @@ sealed record Options(
                     case "--units": units = Next(); break;
                     case "--out" or "-o": outDir = Next(); break;
                     case "--log": log = true; break;
+                    case "--raw": raw = true; break;
                     case "--ping": ping = true; break;
                     case "--verbose" or "-v": verbose = true; break;
                     case "--quiet" or "-q": quiet = true; break;
@@ -215,7 +283,7 @@ sealed record Options(
         }
 
         var unitList = units.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return new Options(broker, port, user, password, unitList, outDir, log, ping, verbose, quiet);
+        return new Options(broker, port, user, password, unitList, outDir, log, raw, ping, verbose, quiet);
     }
 
     private static string? Env(string name) => Environment.GetEnvironmentVariable(name) is { Length: > 0 } v ? v : null;
@@ -231,10 +299,15 @@ sealed record Options(
               --units <list>      Units to record, comma separated (default A,B,C)
           -o, --out <dir>         Output directory (default ./ac-data)
               --log               Also record <unit>/log/ messages (incl. raw hex packets) to JSONL
+              --raw               Record AC serial frames (sent and received) as binary to raw_<date>.bin
               --ping              With --log, also record the 3 s "Ping" heartbeat messages
           -v, --verbose           Print log messages to the console
           -q, --quiet             Don't print state updates to the console
 
-        Output: <out>/<unit>/state_<date>.csv and <out>/<unit>/log_<date>.jsonl, one file per day.
+        Output (one file per unit per day, in <out>/<unit>/):
+          state_<date>.csv   AC state
+          log_<date>.jsonl   firmware log messages (--log)
+          raw_<date>.bin     records: int64 Unix ms | uint8 dir (0 from AC, 1 to AC) | uint16 len | frame (--raw)
+                             all integers little-endian
         """);
 }
